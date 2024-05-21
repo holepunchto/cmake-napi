@@ -55,7 +55,14 @@ function(download_node_headers result)
   )
 
   if(MSVC)
-    # TODO: Download .lib for Windows
+    set(arch "${CMAKE_GENERATOR_PLATFORM}")
+
+    string(TOLOWER "${arch}" arch)
+
+    file(DOWNLOAD
+      "https://nodejs.org/download/release/${version}/win-${arch}/node.lib"
+      "${ARGV_DESTINATION}/node-${version}/lib/node.lib"
+    )
   endif()
 
   set(${result} "${ARGV_DESTINATION}/node-${version}")
