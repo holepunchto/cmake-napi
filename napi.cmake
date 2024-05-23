@@ -1,7 +1,7 @@
 set(napi_module_dir "${CMAKE_CURRENT_LIST_DIR}")
 
 function(find_node result)
-  if(WIN32)
+  if(CMAKE_HOST_WIN32)
     find_program(
       node_bin
       NAMES node.cmd node
