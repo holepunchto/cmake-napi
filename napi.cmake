@@ -142,16 +142,6 @@ function(add_napi_module result)
     IMPORTED_LOCATION "${node}"
   )
 
-  find_library(uv NAMES uv)
-
-  if(NOT uv MATCHES "NOTFOUND")
-    target_link_libraries(
-      ${target}_import_lib
-      INTERFACE
-        ${uv}
-    )
-  endif()
-
   if(MSVC)
     find_library(
       node_lib
