@@ -1,3 +1,5 @@
+include_guard(GLOBAL)
+
 set(napi_module_dir "${CMAKE_CURRENT_LIST_DIR}")
 
 function(find_node result)
