@@ -2,36 +2,9 @@ include_guard(GLOBAL)
 
 set(napi_module_dir "${CMAKE_CURRENT_LIST_DIR}")
 
-function(find_node result)
-  if(CMAKE_HOST_WIN32)
-    find_program(
-      node_bin
-      NAMES node.cmd node
-      REQUIRED
-    )
-  else()
-    find_program(
-      node_bin
-      NAMES node
-      REQUIRED
-    )
-  endif()
-
-  execute_process(
-    COMMAND "${node_bin}" -p "process.argv[0]"
-    OUTPUT_VARIABLE node
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    COMMAND_ERROR_IS_FATAL ANY
-  )
-
-  set(${result} "${node}")
-
-  return(PROPAGATE ${result})
-endfunction()
-
 function(download_node_headers result)
   cmake_parse_arguments(
-    PARSE_ARGV 1 ARGV "" "DESTINATION;VERSION" ""
+    PARSE_ARGV 1 ARGV "" "DESTINATION;IMPORT_FILE;VERSION" ""
   )
 
   if(NOT ARGV_DESTINATION)
@@ -56,20 +29,30 @@ function(download_node_headers result)
     DESTINATION "${ARGV_DESTINATION}"
   )
 
-  if(MSVC)
-    set(arch "${CMAKE_GENERATOR_PLATFORM}")
+  set(import_file ${ARGV_IMPORT_FILE})
 
-    string(TOLOWER "${arch}" arch)
+  if(import_file)
+    if(MSVC)
+      set(arch "${CMAKE_GENERATOR_PLATFORM}")
 
-    file(DOWNLOAD
-      "https://nodejs.org/download/release/${version}/win-${arch}/node.lib"
-      "${ARGV_DESTINATION}/node-${version}/lib/node.lib"
-    )
+      string(TOLOWER "${arch}" arch)
+
+      set(lib "${ARGV_DESTINATION}/node-${version}/lib/node.lib")
+
+      file(DOWNLOAD
+        "https://nodejs.org/download/release/${version}/win-${arch}/node.lib"
+        "${lib}"
+      )
+
+      set(${import_file} "${lib}")
+    else()
+      set(${import_file} ${import_file}-NOTFOUND)
+    endif()
   endif()
 
-  set(${result} "${ARGV_DESTINATION}/node-${version}")
+  set(${result} "${ARGV_DESTINATION}/node-${version}/include/node")
 
-  return(PROPAGATE ${result})
+  return(PROPAGATE ${result} ${import_file})
 endfunction()
 
 function(napi_module_target directory result)
@@ -115,7 +98,7 @@ endfunction()
 function(add_napi_module result)
   napi_module_target("." target NAME name)
 
-  download_node_headers(headers)
+  download_node_headers(node_headers IMPORT_FILE node_lib)
 
   add_library(${target} OBJECT)
 
@@ -130,10 +113,14 @@ function(add_napi_module result)
   target_include_directories(
     ${target}
     PRIVATE
-      "${headers}/include/node"
+      ${node_headers}
   )
 
-  find_node(node)
+  set(${result} ${target})
+
+  if(IOS OR ANDROID)
+    return(PROPAGATE ${result})
+  endif()
 
   add_executable(${target}_import_lib IMPORTED)
 
@@ -141,30 +128,10 @@ function(add_napi_module result)
     ${target}_import_lib
     PROPERTIES
     ENABLE_EXPORTS ON
-    IMPORTED_LOCATION "${node}"
+    IMPORTED_IMPLIB "${node_lib}"
   )
 
-  if(MSVC)
-    find_library(
-      node_lib
-      NAMES node
-      HINTS "${headers}/lib"
-    )
-
-    set_target_properties(
-      ${target}_import_lib
-      PROPERTIES
-      IMPORTED_IMPLIB "${node_lib}"
-    )
-
-    target_link_options(
-      ${target}_import_lib
-      INTERFACE
-        /DELAYLOAD:node.exe
-    )
-  endif()
-
-  add_library(${target}_module MODULE)
+  add_library(${target}_module SHARED)
 
   set_target_properties(
     ${target}_module
@@ -179,10 +146,22 @@ function(add_napi_module result)
   )
 
   if(MSVC)
+    target_link_options(
+      ${target}_module
+      PRIVATE
+        /DELAYLOAD:node.exe
+    )
+
     target_sources(
       ${target}_module
       PRIVATE
         "${napi_module_dir}/win32/delay-load.c"
+    )
+  else()
+    target_link_options(
+      ${target}_module
+      PRIVATE
+        -Wl,-undefined,dynamic_lookup
     )
   endif()
 
@@ -193,8 +172,6 @@ function(add_napi_module result)
     PRIVATE
       ${target}_import_lib
   )
-
-  set(${result} ${target})
 
   return(PROPAGATE ${result})
 endfunction()
