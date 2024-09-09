@@ -12,7 +12,7 @@ function(download_node_headers result)
   endif()
 
   if(NOT ARGV_VERSION)
-    set(ARGV_VERSION "20.13.1")
+    set(ARGV_VERSION "20.17.0")
   endif()
 
   set(version "v${ARGV_VERSION}")
