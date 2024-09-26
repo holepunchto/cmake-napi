@@ -1,0 +1,19 @@
+{
+  "name": "cmake-napi",
+  "version": "1.0.0",
+  "description": "Node-API utilities for CMake",
+  "files": [
+    "*.cmake",
+    "win32/*.c"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/holepunchto/cmake-napi.git"
+  },
+  "author": "Holepunch",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/holepunchto/cmake-napi/issues"
+  },
+  "homepage": "https://github.com/holepunchto/cmake-napi#readme"
+}

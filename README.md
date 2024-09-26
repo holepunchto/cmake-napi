@@ -1,5 +1,13 @@
 # cmake-napi
 
+```
+npm i cmake-napi
+```
+
+```cmake
+find_package(napi REQUIRED PATHS node_modules/cmake-napi)
+```
+
 ## API
 
 #### `find_node(<result>)`
