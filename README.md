@@ -5,7 +5,7 @@ npm i cmake-napi
 ```
 
 ```cmake
-find_package(napi REQUIRED PATHS node_modules/cmake-napi)
+find_package(cmake-napi REQUIRED PATHS node_modules/cmake-napi)
 ```
 
 ## API
