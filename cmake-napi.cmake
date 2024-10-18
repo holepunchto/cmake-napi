@@ -179,11 +179,11 @@ function(add_napi_module result)
 
   set(${result} ${target})
 
-  if(IOS OR ANDROID)
+  napi_target(host)
+
+  if(host MATCHES "ios|android")
     return(PROPAGATE ${result})
   endif()
-
-  napi_target(host)
 
   add_executable(${target}_import_lib IMPORTED)
 
