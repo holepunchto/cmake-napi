@@ -154,6 +154,7 @@ function(add_napi_module result)
       ${target}_module
       PRIVATE
         /DELAYLOAD:node.exe
+        /NOIMPLIB
     )
 
     target_sources(
