@@ -55,6 +55,67 @@ function(download_node_headers result)
   return(PROPAGATE ${result} ${import_file})
 endfunction()
 
+function(napi_platform result)
+  set(platform ${CMAKE_SYSTEM_NAME})
+
+  if(NOT platform)
+    set(platform ${CMAKE_HOST_SYSTEM_NAME})
+  endif()
+
+  string(TOLOWER ${platform} platform)
+
+  if(platform MATCHES "darwin|ios|linux|android")
+    set(${result} ${platform})
+  elseif(platform MATCHES "windows")
+    set(${result} "win32")
+  else()
+    set(${result} "unknown")
+  endif()
+
+  return(PROPAGATE ${result})
+endfunction()
+
+function(napi_arch result)
+  if(APPLE AND CMAKE_OSX_ARCHITECTURES)
+    set(arch ${CMAKE_OSX_ARCHITECTURES})
+  elseif(MSVC AND CMAKE_GENERATOR_PLATFORM)
+    set(arch ${CMAKE_GENERATOR_PLATFORM})
+  elseif(ANDROID AND CMAKE_ANDROID_ARCH_ABI)
+    set(arch ${CMAKE_ANDROID_ARCH_ABI})
+  else()
+    set(arch ${CMAKE_SYSTEM_PROCESSOR})
+  endif()
+
+  if(NOT arch)
+    set(arch ${CMAKE_HOST_SYSTEM_PROCESSOR})
+  endif()
+
+  string(TOLOWER ${arch} arch)
+
+  if(arch MATCHES "arm64|aarch64")
+    set(${result} "arm64")
+  elseif(arch MATCHES "armv7-a|armeabi-v7a")
+    set(${result} "arm")
+  elseif(arch MATCHES "x64|x86_64|amd64")
+    set(${result} "x64")
+  elseif(arch MATCHES "x86|i386|i486|i586|i686")
+    set(${result} "ia32")
+  else()
+    set(${result} "unknown")
+  endif()
+
+  return(PROPAGATE ${result})
+endfunction()
+
+function(napi_target result)
+  napi_platform(platform)
+  napi_arch(arch)
+
+  set(${result} ${platform}-${arch})
+
+  return(PROPAGATE ${result})
+endfunction()
+
 function(napi_module_target directory result)
   cmake_parse_arguments(
     PARSE_ARGV 2 ARGV "" "NAME;VERSION;HASH" ""
@@ -122,6 +183,8 @@ function(add_napi_module result)
     return(PROPAGATE ${result})
   endif()
 
+  napi_target(host)
+
   add_executable(${target}_import_lib IMPORTED)
 
   set_target_properties(
@@ -177,6 +240,8 @@ function(add_napi_module result)
     PRIVATE
       ${target}_import_lib
   )
+
+  install(TARGETS ${target}_module DESTINATION ${host})
 
   return(PROPAGATE ${result})
 endfunction()
