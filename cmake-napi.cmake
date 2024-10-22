@@ -202,6 +202,8 @@ function(add_napi_module result)
     OUTPUT_NAME ${name}
     PREFIX ""
     SUFFIX ".node"
+    IMPORT_PREFIX ""
+    IMPORT_SUFFIX ".node.lib"
 
     # Don't set a shared library name to allow loading the resulting library as
     # a plugin.
