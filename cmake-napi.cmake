@@ -217,7 +217,12 @@ function(add_napi_module result)
       ${target}_module
       PRIVATE
         /DELAYLOAD:node.exe
-        /NOIMPLIB
+    )
+
+    target_link_libraries(
+      ${target}_module
+      PRIVATE
+        delayimp
     )
 
     target_sources(
@@ -241,7 +246,17 @@ function(add_napi_module result)
       ${target}_import_lib
   )
 
-  install(TARGETS ${target}_module DESTINATION ${host})
+  if (host MATCHES "win32")
+    install(
+      TARGETS ${target}_module
+      RUNTIME DESTINATION ${host}
+    )
+  else()
+    install(
+      TARGETS ${target}_module
+      LIBRARY DESTINATION ${host}
+    )
+  endif()
 
   return(PROPAGATE ${result})
 endfunction()
