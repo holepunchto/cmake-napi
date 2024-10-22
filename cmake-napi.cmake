@@ -15,6 +15,8 @@ function(download_node_headers result)
     set(ARGV_VERSION "20.17.0")
   endif()
 
+  napi_target(target)
+
   set(version "v${ARGV_VERSION}")
 
   set(archive "${CMAKE_CURRENT_BINARY_DIR}/node-${version}.tar.gz")
@@ -32,10 +34,8 @@ function(download_node_headers result)
   set(import_file ${ARGV_IMPORT_FILE})
 
   if(import_file)
-    if(MSVC)
-      set(arch "${CMAKE_GENERATOR_PLATFORM}")
-
-      string(TOLOWER "${arch}" arch)
+    if(target MATCHES "win32")
+      napi_arch(arch)
 
       set(lib "${ARGV_DESTINATION}/node-${version}/lib/node.lib")
 
@@ -214,7 +214,7 @@ function(add_napi_module result)
     WINDOWS_EXPORT_ALL_SYMBOLS ON
   )
 
-  if(MSVC)
+  if(host MATCHES "win32")
     target_link_options(
       ${target}_module
       PRIVATE
