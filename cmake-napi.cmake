@@ -185,10 +185,10 @@ function(add_napi_module result)
     return(PROPAGATE ${result})
   endif()
 
-  add_executable(${target}_import_lib IMPORTED)
+  add_executable(${target}_import_library IMPORTED)
 
   set_target_properties(
-    ${target}_import_lib
+    ${target}_import_library
     PROPERTIES
     ENABLE_EXPORTS ON
     IMPORTED_IMPLIB "${node_lib}"
@@ -243,9 +243,10 @@ function(add_napi_module result)
   target_link_libraries(
     ${target}_module
     PUBLIC
-      ${target}
+      $<TARGET_PROPERTY:${target},INTERFACE_LINK_LIBRARIES>
     PRIVATE
-      ${target}_import_lib
+      ${target}
+      ${target}_import_library
   )
 
   if (host MATCHES "win32")
