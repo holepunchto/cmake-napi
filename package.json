@@ -1,6 +1,6 @@
 {
   "name": "cmake-napi",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Node-API utilities for CMake",
   "files": [
     "*.cmake",
