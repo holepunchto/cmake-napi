@@ -1,5 +1,7 @@
 # cmake-napi
 
+Node-API utilities for CMake.
+
 ```
 npm i cmake-napi
 ```
@@ -10,17 +12,13 @@ find_package(cmake-napi REQUIRED PATHS node_modules/cmake-napi)
 
 ## API
 
-#### `find_node(<result>)`
-
-#### `download_node_headers(<result> [VERSION <version>] [DESTINATION <path>])`
-
 #### `napi_platform(<result>)`
 
 #### `napi_arch(<result>)`
 
 #### `napi_target(<result>)`
 
-#### `napi_module_target(<directory> <result>)`
+#### `napi_module_target(<directory> <result> [NAME <var>] [VERSION <var>] [HASH <var>])`
 
 #### `add_napi_module(<result>)`
 

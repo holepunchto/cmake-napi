@@ -12,14 +12,31 @@
 #include <delayimp.h>
 #include <string.h>
 
+static inline HMODULE
+napi__module_main (void) {
+  static HMODULE main = NULL;
+
+  if (main == NULL) main = GetModuleHandle(NULL);
+
+  return main;
+}
+
+static inline int
+napi__string_equals (LPCSTR a, LPCSTR b) {
+  return _stricmp(a, b) == 0;
+}
+
 static FARPROC WINAPI
-napi_delay_load (unsigned event, PDelayLoadInfo info) {
+napi__delay_load (unsigned event, PDelayLoadInfo info) {
   switch (event) {
   case dliNotePreLoadLibrary:
-    if (_stricmp(info->szDll, "node.exe") == 0) {
-      return (FARPROC) GetModuleHandle(NULL);
+    LPCSTR dll = info->szDll;
+
+    if (napi__string_equals(dll, "node.exe")) {
+      return (FARPROC) napi__module_main();
     }
-    break;
+
+    return NULL;
 
   default:
     return NULL;
@@ -28,6 +45,6 @@ napi_delay_load (unsigned event, PDelayLoadInfo info) {
   return NULL;
 }
 
-const PfnDliHook __pfnDliNotifyHook2 = napi_delay_load;
+const PfnDliHook __pfnDliNotifyHook2 = napi__delay_load;
 
-const PfnDliHook __pfnDliFailureHook2 = napi_delay_load;
+const PfnDliHook __pfnDliFailureHook2 = napi__delay_load;

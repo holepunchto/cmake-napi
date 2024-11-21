@@ -3,12 +3,18 @@ include_guard()
 set(napi_module_dir "${CMAKE_CURRENT_LIST_DIR}")
 
 function(download_node_headers result)
+  set(one_value_keywords
+    DESTINATION
+    VERSION
+    IMPORT_FILE
+  )
+
   cmake_parse_arguments(
-    PARSE_ARGV 1 ARGV "" "DESTINATION;IMPORT_FILE;VERSION" ""
+    PARSE_ARGV 1 ARGV "" "${one_value_keywords}" ""
   )
 
   if(NOT ARGV_DESTINATION)
-    set(ARGV_DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
+    set(ARGV_DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/_napi")
   endif()
 
   if(NOT ARGV_VERSION)
@@ -117,8 +123,14 @@ function(napi_target result)
 endfunction()
 
 function(napi_module_target directory result)
+  set(one_value_keywords
+    NAME
+    VERSION
+    HASH
+  )
+
   cmake_parse_arguments(
-    PARSE_ARGV 2 ARGV "" "NAME;VERSION;HASH" ""
+    PARSE_ARGV 2 ARGV "" "${one_value_keywords}" ""
   )
 
   set(package_path package.json)
@@ -142,24 +154,24 @@ function(napi_module_target directory result)
   set(${result} "${name}-${version}-${hash}")
 
   if(ARGV_NAME)
-    set(${ARGV_NAME} ${name})
+    set(${ARGV_NAME} ${name} PARENT_SCOPE)
   endif()
 
   if(ARGV_VERSION)
-    set(${ARGV_VERSION} ${version})
+    set(${ARGV_VERSION} ${version} PARENT_SCOPE)
   endif()
 
   if(ARGV_HASH)
-    set(${ARGV_HASH} ${hash})
+    set(${ARGV_HASH} ${hash} PARENT_SCOPE)
   endif()
 
-  return(PROPAGATE ${result} ${ARGV_NAME} ${ARGV_VERSION} ${ARGV_HASH})
+  return(PROPAGATE ${result})
 endfunction()
 
 function(add_napi_module result)
-  napi_module_target("." target NAME name)
-
   download_node_headers(node_headers IMPORT_FILE node_lib)
+
+  napi_module_target("." target NAME name)
 
   add_library(${target} OBJECT)
 
@@ -185,20 +197,12 @@ function(add_napi_module result)
     return(PROPAGATE ${result})
   endif()
 
-  add_executable(${target}_import_library IMPORTED)
-
-  set_target_properties(
-    ${target}_import_library
-    PROPERTIES
-    ENABLE_EXPORTS ON
-    IMPORTED_IMPLIB "${node_lib}"
-  )
-
   add_library(${target}_module SHARED)
 
   set_target_properties(
     ${target}_module
     PROPERTIES
+
     OUTPUT_NAME ${name}
     PREFIX ""
     SUFFIX ".node"
@@ -214,23 +218,56 @@ function(add_napi_module result)
     WINDOWS_EXPORT_ALL_SYMBOLS ON
   )
 
+  target_link_libraries(
+    ${target}_module
+    PRIVATE
+      ${target}
+  )
+
   if(host MATCHES "win32")
-    target_link_options(
-      ${target}_module
-      PRIVATE
-        /DELAYLOAD:node.exe
+    add_executable(${target}_import_library IMPORTED)
+
+    set_target_properties(
+      ${target}_import_library
+      PROPERTIES
+      ENABLE_EXPORTS ON
+      IMPORTED_IMPLIB "${node_lib}"
     )
+
+    if(NOT TARGET napi_delay_load)
+      add_library(napi_delay_load STATIC)
+
+      target_sources(
+        napi_delay_load
+        PRIVATE
+          "${napi_module_dir}/win32/delay-load.c"
+      )
+
+      target_include_directories(
+        napi_delay_load
+        PRIVATE
+          ${napi_headers}
+      )
+
+      target_link_libraries(
+        napi_delay_load
+        INTERFACE
+          delayimp
+      )
+
+      target_link_options(
+        napi_delay_load
+        INTERFACE
+          /DELAYLOAD:node.exe
+      )
+    endif()
 
     target_link_libraries(
       ${target}_module
       PRIVATE
-        delayimp
-    )
-
-    target_sources(
-      ${target}_module
-      PRIVATE
-        "${napi_module_dir}/win32/delay-load.c"
+        ${target}_import_library
+      PUBLIC
+        napi_delay_load
     )
   else()
     target_link_options(
@@ -240,24 +277,11 @@ function(add_napi_module result)
     )
   endif()
 
-  target_link_libraries(
-    ${target}_module
-    PRIVATE
-      ${target}
-      ${target}_import_library
+  install(
+    FILES $<TARGET_FILE:${target}_module>
+    DESTINATION ${host}
+    RENAME ${name}.node
   )
-
-  if (host MATCHES "win32")
-    install(
-      TARGETS ${target}_module
-      RUNTIME DESTINATION ${host}
-    )
-  else()
-    install(
-      TARGETS ${target}_module
-      LIBRARY DESTINATION ${host}
-    )
-  endif()
 
   return(PROPAGATE ${result})
 endfunction()
