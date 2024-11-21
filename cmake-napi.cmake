@@ -171,7 +171,9 @@ endfunction()
 function(add_napi_module result)
   download_node_headers(node_headers IMPORT_FILE node_lib)
 
-  napi_module_target("." target NAME name)
+  napi_module_target("." target NAME name VERSION version)
+
+  string(REGEX MATCH "^[0-9]+" major "${version}")
 
   add_library(${target} OBJECT)
 
@@ -212,6 +214,11 @@ function(add_napi_module result)
     # Don't set a shared library name to allow loading the resulting library as
     # a plugin.
     NO_SONAME ON
+
+    # Set the Mach-O compatibility versions for macOS and iOS. This is mostly
+    # for debugging purposes.
+    MACHO_CURRENT_VERSION ${version}
+    MACHO_COMPATIBILITY_VERSION ${major}
 
     # Automatically export all available symbols on Windows. Without this,
     # module authors would have to explicitly export public symbols.
