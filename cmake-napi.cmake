@@ -195,10 +195,6 @@ function(add_napi_module result)
 
   napi_target(host)
 
-  if(host MATCHES "ios|android")
-    return(PROPAGATE ${result})
-  endif()
-
   add_library(${target}_module SHARED)
 
   set_target_properties(
