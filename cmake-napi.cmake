@@ -144,6 +144,7 @@ function(napi_module_target directory result)
   string(JSON name GET "${package}" "name")
 
   string(REGEX REPLACE "/" "+" name ${name})
+  string(REGEX REPLACE "^@" "" name ${name})
 
   string(JSON version GET "${package}" "version")
 
