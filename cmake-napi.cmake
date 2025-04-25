@@ -113,11 +113,32 @@ function(napi_arch result)
   return(PROPAGATE ${result})
 endfunction()
 
+function(napi_environment result)
+  if(LINUX)
+    if(CMAKE_C_COMPILER_TARGET MATCHES "-musl(sf)?")
+      set(${result} "musl")
+    else()
+      set(${result} "")
+    endif()
+  else()
+    set(${result} "")
+  endif()
+
+  return(PROPAGATE ${result})
+endfunction()
+
 function(napi_target result)
   napi_platform(platform)
   napi_arch(arch)
+  napi_environment(environment)
 
-  set(${result} ${platform}-${arch})
+  set(target ${platform}-${arch})
+
+  if(environment)
+    set(target ${target}-${environment})
+  endif()
+
+  set(${result} ${target})
 
   return(PROPAGATE ${result})
 endfunction()
