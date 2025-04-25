@@ -114,15 +114,13 @@ function(napi_arch result)
 endfunction()
 
 function(napi_environment result)
-  if(LINUX)
-    if(CMAKE_C_COMPILER_TARGET MATCHES "-musl(sf)?")
-      set(${result} "musl")
-    else()
-      set(${result} "")
-    endif()
-  else()
-    set(${result} "")
+  set(environment "")
+
+  if(LINUX AND CMAKE_C_COMPILER_TARGET MATCHES "-musl(sf)?")
+    set(environment "musl")
   endif()
+
+  set(${result} ${environment})
 
   return(PROPAGATE ${result})
 endfunction()
