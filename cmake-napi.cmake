@@ -18,7 +18,7 @@ function(download_node_headers result)
   endif()
 
   if(NOT ARGV_VERSION)
-    set(ARGV_VERSION "20.17.0")
+    set(ARGV_VERSION "22.16.0")
   endif()
 
   napi_target(target)
