@@ -31,7 +31,9 @@ active LTS line rather than a fixed version.
 
 #### `napi_module_target(<directory> <result> [NAME <var>] [VERSION <var>] [HASH <var>])`
 
-#### `add_napi_module(<result>)`
+#### `add_napi_module(<result> [NODE_VERSION <version>])`
+
+Add a Node-API module, downloading the Node.js headers for `NODE_VERSION`.
 
 ## License
 

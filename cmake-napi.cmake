@@ -238,7 +238,17 @@ function(napi_module_target directory result)
 endfunction()
 
 function(add_napi_module result)
-  download_node_headers(node_headers IMPORT_FILE node_lib)
+  set(one_value_keywords
+    NODE_VERSION
+  )
+
+  cmake_parse_arguments(
+    PARSE_ARGV 1 ARGV "" "${one_value_keywords}" ""
+  )
+
+  download_node_headers(
+    node_headers VERSION "${ARGV_NODE_VERSION}" IMPORT_FILE node_lib
+  )
 
   napi_module_target("." target NAME name VERSION version)
 
