@@ -2,6 +2,47 @@ include_guard()
 
 set(napi_module_dir "${CMAKE_CURRENT_LIST_DIR}")
 
+function(node_lts_version result)
+  set(index "${CMAKE_CURRENT_BINARY_DIR}/node-index.json")
+
+  file(DOWNLOAD
+    "https://nodejs.org/download/release/index.json"
+    "${index}"
+    STATUS status
+  )
+
+  list(GET status 0 code)
+
+  if(NOT code EQUAL 0)
+    list(GET status 1 error)
+
+    message(FATAL_ERROR "Could not download Node.js release index: ${error}")
+  endif()
+
+  file(READ "${index}" releases)
+
+  string(JSON len LENGTH "${releases}")
+
+  math(EXPR last "${len} - 1")
+
+  # Releases are ordered by version, newest first, and carry a codename rather
+  # than `false` in their `lts` field once they enter long-term support. The
+  # first such release is therefore the latest release of the active LTS line.
+  foreach(i RANGE ${last})
+    string(JSON type TYPE "${releases}" ${i} "lts")
+
+    if(type STREQUAL "STRING")
+      string(JSON version GET "${releases}" ${i} "version")
+
+      string(REGEX REPLACE "^v" "" ${result} "${version}")
+
+      return(PROPAGATE ${result})
+    endif()
+  endforeach()
+
+  message(FATAL_ERROR "No Node.js LTS release found")
+endfunction()
+
 function(download_node_headers result)
   set(one_value_keywords
     DESTINATION
@@ -18,7 +59,11 @@ function(download_node_headers result)
   endif()
 
   if(NOT ARGV_VERSION)
-    set(ARGV_VERSION "22.16.0")
+    set(ARGV_VERSION "24.20.0")
+  endif()
+
+  if(ARGV_VERSION STREQUAL "LTS")
+    node_lts_version(ARGV_VERSION)
   endif()
 
   napi_target(target)
