@@ -246,8 +246,14 @@ function(add_napi_module result)
     PARSE_ARGV 1 ARGV "" "${one_value_keywords}" ""
   )
 
+  if(ARGV_NODE_VERSION)
+    set(node_version VERSION "${ARGV_NODE_VERSION}")
+  else()
+    set(node_version)
+  endif()
+
   download_node_headers(
-    node_headers VERSION "${ARGV_NODE_VERSION}" IMPORT_FILE node_lib
+    node_headers ${node_version} IMPORT_FILE node_lib
   )
 
   napi_module_target("." target NAME name VERSION version)
