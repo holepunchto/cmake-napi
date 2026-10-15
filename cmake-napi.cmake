@@ -161,7 +161,7 @@ endfunction()
 function(napi_environment result)
   set(environment "")
 
-  if(LINUX AND CMAKE_C_COMPILER_TARGET MATCHES "-(musl(sf))?")
+  if(LINUX AND CMAKE_C_COMPILER_TARGET MATCHES "-linux-(musl(sf)?)")
     set(environment "${CMAKE_MATCH_1}")
   endif()
 
