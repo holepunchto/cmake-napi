@@ -115,7 +115,7 @@ function(napi_platform result)
 
   string(TOLOWER ${platform} platform)
 
-  if(platform MATCHES "darwin|ios|linux|android")
+  if(platform MATCHES "darwin|ios|linux|android|freertos")
     set(${result} ${platform})
   elseif(platform MATCHES "windows")
     set(${result} "win32")
@@ -145,12 +145,16 @@ function(napi_arch result)
 
   if(arch MATCHES "arm64|aarch64")
     set(${result} "arm64")
+  elseif(arch MATCHES "armv8m")
+    set(${result} "armv8m")
   elseif(arch MATCHES "armv7-a|armeabi-v7a")
     set(${result} "arm")
   elseif(arch MATCHES "x64|x86_64|amd64")
     set(${result} "x64")
   elseif(arch MATCHES "x86|i386|i486|i586|i686")
     set(${result} "ia32")
+  elseif(arch MATCHES "riscv32")
+    set(${result} "riscv32")
   else()
     set(${result} "unknown")
   endif()
@@ -281,6 +285,18 @@ function(add_napi_module result)
   napi_target(host)
 
   if(host MATCHES "ios")
+    return(PROPAGATE ${result})
+  endif()
+
+  # FreeRTOS has no dynamic loader, so addons are only ever linked statically
+  # from the object library.
+  if(host MATCHES "^freertos-")
+    set_target_properties(
+      ${target}
+      PROPERTIES
+      POSITION_INDEPENDENT_CODE OFF
+    )
+
     return(PROPAGATE ${result})
   endif()
 
