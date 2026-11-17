@@ -6,6 +6,14 @@
     "*.cmake",
     "win32/*.c"
   ],
+  "workspaces": [
+    "test/fixtures/*"
+  ],
+  "scripts": {
+    "format": "prettier --write . && lunte --fix",
+    "lint": "prettier --check . && lunte",
+    "test": "brittle-node test.js"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/holepunchto/cmake-napi.git"
@@ -15,5 +23,12 @@
   "bugs": {
     "url": "https://github.com/holepunchto/cmake-napi/issues"
   },
-  "homepage": "https://github.com/holepunchto/cmake-napi#readme"
+  "homepage": "https://github.com/holepunchto/cmake-napi#readme",
+  "devDependencies": {
+    "bare-make": "^1.8.0",
+    "brittle": "^3.7.0",
+    "lunte": "^1.8.0",
+    "prettier": "^3.3.3",
+    "prettier-config-holepunch": "^2.0.0"
+  }
 }

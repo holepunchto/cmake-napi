@@ -2,22 +2,37 @@ include_guard()
 
 set(napi_module_dir "${CMAKE_CURRENT_LIST_DIR}")
 
-function(node_lts_version result)
-  set(index "${CMAKE_CURRENT_BINARY_DIR}/node-index.json")
-
-  file(DOWNLOAD
-    "https://nodejs.org/download/release/index.json"
-    "${index}"
-    STATUS status
-  )
+# Download `url` to `path`, failing the configure if the download fails. The
+# file is only moved into place once complete, so an existing `path` is always
+# a complete download.
+function(napi_download url path)
+  file(DOWNLOAD "${url}" "${path}.part" STATUS status)
 
   list(GET status 0 code)
 
   if(NOT code EQUAL 0)
     list(GET status 1 error)
 
-    message(FATAL_ERROR "Could not download Node.js release index: ${error}")
+    file(REMOVE "${path}.part")
+
+    message(FATAL_ERROR "Could not download ${url}: ${error}")
   endif()
+
+  file(RENAME "${path}.part" "${path}")
+endfunction()
+
+function(node_lts_version result)
+  get_property(version GLOBAL PROPERTY napi_lts_version)
+
+  if(version)
+    set(${result} ${version})
+
+    return(PROPAGATE ${result})
+  endif()
+
+  set(index "${CMAKE_BINARY_DIR}/_napi/node-index.json")
+
+  napi_download("https://nodejs.org/download/release/index.json" "${index}")
 
   file(READ "${index}" releases)
 
@@ -35,6 +50,8 @@ function(node_lts_version result)
       string(JSON version GET "${releases}" ${i} "version")
 
       string(REGEX REPLACE "^v" "" ${result} "${version}")
+
+      set_property(GLOBAL PROPERTY napi_lts_version ${${result}})
 
       return(PROPAGATE ${result})
     endif()
@@ -55,7 +72,7 @@ function(download_node_headers result)
   )
 
   if(NOT ARGV_DESTINATION)
-    set(ARGV_DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/_napi")
+    set(ARGV_DESTINATION "${CMAKE_BINARY_DIR}/_napi")
   endif()
 
   if(NOT ARGV_VERSION)
@@ -70,17 +87,31 @@ function(download_node_headers result)
 
   set(version "v${ARGV_VERSION}")
 
-  set(archive "${CMAKE_CURRENT_BINARY_DIR}/node-${version}.tar.gz")
+  set(output "${ARGV_DESTINATION}/node-${version}")
 
-  file(DOWNLOAD
-    "https://nodejs.org/download/release/${version}/node-${version}-headers.tar.gz"
-    "${archive}"
-  )
+  if(NOT EXISTS "${output}")
+    set(archive "${ARGV_DESTINATION}/node-${version}-headers.tar.gz")
 
-  file(ARCHIVE_EXTRACT
-    INPUT "${archive}"
-    DESTINATION "${ARGV_DESTINATION}"
-  )
+    napi_download(
+      "https://nodejs.org/download/release/${version}/node-${version}-headers.tar.gz"
+      "${archive}"
+    )
+
+    # Extract to a staging directory first so that `output` only ever exists
+    # once fully extracted.
+    set(staging "${ARGV_DESTINATION}/.node-${version}")
+
+    file(REMOVE_RECURSE "${staging}")
+
+    file(ARCHIVE_EXTRACT
+      INPUT "${archive}"
+      DESTINATION "${staging}"
+    )
+
+    file(RENAME "${staging}/node-${version}" "${output}")
+
+    file(REMOVE_RECURSE "${staging}" "${archive}")
+  endif()
 
   set(import_file ${ARGV_IMPORT_FILE})
 
@@ -88,12 +119,14 @@ function(download_node_headers result)
     if(target MATCHES "win32")
       napi_arch(arch)
 
-      set(lib "${ARGV_DESTINATION}/node-${version}/lib/node.lib")
+      set(lib "${output}/lib/${arch}/node.lib")
 
-      file(DOWNLOAD
-        "https://nodejs.org/download/release/${version}/win-${arch}/node.lib"
-        "${lib}"
-      )
+      if(NOT EXISTS "${lib}")
+        napi_download(
+          "https://nodejs.org/download/release/${version}/win-${arch}/node.lib"
+          "${lib}"
+        )
+      endif()
 
       set(${import_file} "${lib}")
     else()
@@ -101,19 +134,27 @@ function(download_node_headers result)
     endif()
   endif()
 
-  set(${result} "${ARGV_DESTINATION}/node-${version}/include/node")
+  set(${result} "${output}/include/node")
 
   return(PROPAGATE ${result} ${import_file})
 endfunction()
 
 function(napi_platform result)
-  set(platform ${CMAKE_SYSTEM_NAME})
+  cmake_parse_arguments(
+    PARSE_ARGV 1 ARGV "HOST" "" ""
+  )
 
-  if(NOT platform)
+  if(ARGV_HOST)
     set(platform ${CMAKE_HOST_SYSTEM_NAME})
+  else()
+    set(platform ${CMAKE_SYSTEM_NAME})
+
+    if(NOT platform)
+      set(platform ${CMAKE_HOST_SYSTEM_NAME})
+    endif()
   endif()
 
-  string(TOLOWER ${platform} platform)
+  string(TOLOWER "${platform}" platform)
 
   if(platform MATCHES "darwin|ios|linux|android|freertos")
     set(${result} ${platform})
@@ -127,21 +168,31 @@ function(napi_platform result)
 endfunction()
 
 function(napi_arch result)
-  if(APPLE AND CMAKE_OSX_ARCHITECTURES)
-    set(arch ${CMAKE_OSX_ARCHITECTURES})
-  elseif(MSVC AND CMAKE_GENERATOR_PLATFORM)
-    set(arch ${CMAKE_GENERATOR_PLATFORM})
-  elseif(ANDROID AND CMAKE_ANDROID_ARCH_ABI)
-    set(arch ${CMAKE_ANDROID_ARCH_ABI})
-  else()
-    set(arch ${CMAKE_SYSTEM_PROCESSOR})
-  endif()
+  cmake_parse_arguments(
+    PARSE_ARGV 1 ARGV "HOST" "" ""
+  )
 
-  if(NOT arch)
+  if(ARGV_HOST)
     set(arch ${CMAKE_HOST_SYSTEM_PROCESSOR})
+  else()
+    if(APPLE AND CMAKE_OSX_ARCHITECTURES)
+      set(arch ${CMAKE_OSX_ARCHITECTURES})
+    elseif(MSVC AND CMAKE_GENERATOR_PLATFORM)
+      set(arch ${CMAKE_GENERATOR_PLATFORM})
+    elseif(ANDROID AND CMAKE_ANDROID_ARCH_ABI)
+      set(arch ${CMAKE_ANDROID_ARCH_ABI})
+    else()
+      set(arch ${CMAKE_SYSTEM_PROCESSOR})
+    endif()
+
+    # The host processor says nothing about the target when cross compiling, so
+    # report an unknown arch rather than a wrong one.
+    if(NOT arch AND NOT CMAKE_CROSSCOMPILING)
+      set(arch ${CMAKE_HOST_SYSTEM_PROCESSOR})
+    endif()
   endif()
 
-  string(TOLOWER ${arch} arch)
+  string(TOLOWER "${arch}" arch)
 
   if(arch MATCHES "arm64|aarch64")
     set(${result} "arm64")
@@ -162,11 +213,39 @@ function(napi_arch result)
   return(PROPAGATE ${result})
 endfunction()
 
+function(napi_simulator result)
+  cmake_parse_arguments(
+    PARSE_ARGV 1 ARGV "HOST" "" ""
+  )
+
+  if(ARGV_HOST)
+    set(sysroot "")
+  else()
+    set(sysroot ${CMAKE_OSX_SYSROOT})
+  endif()
+
+  if(sysroot MATCHES "iPhoneSimulator")
+    set(${result} YES)
+  else()
+    set(${result} NO)
+  endif()
+
+  return(PROPAGATE ${result})
+endfunction()
+
 function(napi_environment result)
+  cmake_parse_arguments(
+    PARSE_ARGV 1 ARGV "HOST" "" ""
+  )
+
   set(environment "")
 
-  if(LINUX AND CMAKE_C_COMPILER_TARGET MATCHES "-linux-(musl(sf)?)")
-    set(environment "${CMAKE_MATCH_1}")
+  if(NOT ARGV_HOST)
+    if(APPLE AND CMAKE_OSX_SYSROOT MATCHES "iPhoneSimulator")
+      set(environment "simulator")
+    elseif(LINUX AND CMAKE_C_COMPILER_TARGET MATCHES "-linux-(musl(sf)?)")
+      set(environment "${CMAKE_MATCH_1}")
+    endif()
   endif()
 
   set(${result} ${environment})
@@ -175,9 +254,19 @@ function(napi_environment result)
 endfunction()
 
 function(napi_target result)
-  napi_platform(platform)
-  napi_arch(arch)
-  napi_environment(environment)
+  cmake_parse_arguments(
+    PARSE_ARGV 1 ARGV "HOST" "" ""
+  )
+
+  if(ARGV_HOST)
+    set(host HOST)
+  else()
+    set(host)
+  endif()
+
+  napi_platform(platform ${host})
+  napi_arch(arch ${host})
+  napi_environment(environment ${host})
 
   set(target ${platform}-${arch})
 
@@ -246,14 +335,25 @@ function(add_napi_module result)
     NODE_VERSION
   )
 
+  set(multi_value_keywords
+    INSTALL
+  )
+
   cmake_parse_arguments(
-    PARSE_ARGV 1 ARGV "" "${one_value_keywords}" ""
+    PARSE_ARGV 1 ARGV "" "${one_value_keywords}" "${multi_value_keywords}"
   )
 
   if(ARGV_NODE_VERSION)
     set(node_version VERSION "${ARGV_NODE_VERSION}")
   else()
     set(node_version)
+  endif()
+
+  if(ARGV_INSTALL STREQUAL "OFF")
+    set(install OFF)
+    set(ARGV_INSTALL)
+  else()
+    set(install ON)
   endif()
 
   download_node_headers(
@@ -302,6 +402,14 @@ function(add_napi_module result)
 
   add_library(${target}_module SHARED)
 
+  if(APPLE)
+    set(${target}_rpath "@loader_path/${name}")
+  elseif(LINUX)
+    set(${target}_rpath "$ORIGIN/${name}")
+  else()
+    set(${target}_rpath "")
+  endif()
+
   set_target_properties(
     ${target}_module
     PROPERTIES
@@ -316,14 +424,15 @@ function(add_napi_module result)
     # a plugin.
     NO_SONAME ON
 
+    # Set the runpath of the addon to support loading of runtime dependencies
+    # located in a named directory next to the addon prebuilds.
+    INSTALL_RPATH "${${target}_rpath}"
+    BUILD_WITH_INSTALL_RPATH ON
+
     # Set the Mach-O compatibility versions for macOS and iOS. This is mostly
     # for debugging purposes.
     MACHO_CURRENT_VERSION ${version}
     MACHO_COMPATIBILITY_VERSION ${major}
-
-    # Automatically export all available symbols on Windows. Without this,
-    # module authors would have to explicitly export public symbols.
-    WINDOWS_EXPORT_ALL_SYMBOLS ON
   )
 
   target_link_libraries(
@@ -349,12 +458,6 @@ function(add_napi_module result)
         napi_delay_load
         PRIVATE
           "${napi_module_dir}/win32/delay-load.c"
-      )
-
-      target_include_directories(
-        napi_delay_load
-        PRIVATE
-          ${napi_headers}
       )
 
       target_link_libraries(
@@ -385,11 +488,96 @@ function(add_napi_module result)
     )
   endif()
 
+  restrict_napi_module_exports(${target})
+
+  if(NOT install)
+    return(PROPAGATE ${result})
+  endif()
+
   install(
     FILES $<TARGET_FILE:${target}_module>
     DESTINATION ${host}
     RENAME ${name}.node
   )
 
+  while(TRUE)
+    list(LENGTH ARGV_INSTALL len)
+
+    if(len LESS 2)
+      break()
+    endif()
+
+    list(POP_FRONT ARGV_INSTALL type value)
+
+    if(type MATCHES "TARGET")
+      get_target_property(target_type ${value} TYPE)
+
+      if(target_type MATCHES "SHARED_LIBRARY" AND NOT WIN32)
+        install(
+          FILES $<TARGET_FILE:${value}>
+          DESTINATION ${host}/${name}
+          RENAME $<TARGET_SONAME_FILE_NAME:${value}>
+        )
+      else()
+        install(
+          FILES $<TARGET_FILE:${value}>
+          DESTINATION ${host}/${name}
+        )
+      endif()
+    endif()
+  endwhile()
+
   return(PROPAGATE ${result})
+endfunction()
+
+# Export only the symbols that Node.js looks up when loading the addon `target`
+# from its shared library.
+function(restrict_napi_module_exports target)
+  # The Node.js headers declare the loader symbols with `__declspec(dllexport)`,
+  # so a DLL exports nothing else to begin with.
+  if(WIN32)
+    return()
+  endif()
+
+  set(base "${CMAKE_CURRENT_BINARY_DIR}/${target}")
+
+  set(symbols
+    napi_register_module_v*
+    node_api_module_get_api_version_v*
+    node_register_module_v*
+  )
+
+  if(APPLE)
+    set(exports_file "${base}.exp")
+
+    list(TRANSFORM symbols PREPEND "_")
+    list(JOIN symbols "\n" symbols)
+
+    file(CONFIGURE OUTPUT "${exports_file}" CONTENT "${symbols}\n" @ONLY)
+
+    target_link_options(
+      ${target}_module
+      PRIVATE
+        "-Wl,-exported_symbols_list,${exports_file}"
+    )
+  else()
+    set(exports_file "${base}.map")
+
+    list(TRANSFORM symbols PREPEND "    ")
+    list(JOIN symbols ";\n" symbols)
+
+    file(CONFIGURE OUTPUT "${exports_file}" CONTENT "{\n  global:\n${symbols};\n\n  local:\n    *;\n};\n" @ONLY)
+
+    target_link_options(
+      ${target}_module
+      PRIVATE
+        "-Wl,--version-script=${exports_file}"
+    )
+  endif()
+
+  set_property(
+    TARGET ${target}_module
+    APPEND
+    PROPERTY LINK_DEPENDS "${exports_file}"
+  )
 endfunction()
