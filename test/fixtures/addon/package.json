@@ -1,0 +1,7 @@
+{
+  "name": "addon",
+  "version": "1.2.3",
+  "devDependencies": {
+    "cmake-napi": "file:../../.."
+  }
+}
